@@ -2260,9 +2260,6 @@ int adreno_soft_reset(struct kgsl_device *device)
 		return -EINVAL;
 	}
 
-	if (adreno_dev->drawctxt_active)
-		kgsl_context_put(&adreno_dev->drawctxt_active->base);
-
 	adreno_dev->drawctxt_active = NULL;
 
 	/* Stop the ringbuffer */
@@ -2325,9 +2322,11 @@ _adreno_ft_restart_device(struct kgsl_device *device,
 	}
 
 reset_done:
-	if (context)
-		kgsl_mmu_setstate(&device->mmu, context->pagetable,
-				KGSL_MEMSTORE_GLOBAL);
+	if (context) {
+		struct adreno_context *adreno_context = context->devctxt;
+		kgsl_mmu_setstate(&device->mmu, adreno_context->pagetable,
+			KGSL_MEMSTORE_GLOBAL);
+	}
 
 	/* If iommu is used then we need to make sure that the iommu clocks
 	 * are on since there could be commands in pipeline that touch iommu */
@@ -2431,8 +2430,6 @@ _adreno_ft(struct kgsl_device *device,
 	static int no_context_ft;
 	struct kgsl_mmu *mmu = &device->mmu;
 
-	context = kgsl_context_get(device, ft_data->context_id);
-
 	if (context == NULL) {
 		KGSL_FT_ERR(device, "Last context unknown id:%d\n",
 			ft_data->context_id);
@@ -2502,16 +2499,16 @@ _adreno_ft(struct kgsl_device *device,
 		goto play_good_cmds;
 	}
 
-	/* Do not try to replay if hang is due to a pagefault */
-	if (context && test_bit(KGSL_CONTEXT_PAGEFAULT, &context->priv)) {
+	/* Do not try the reply if hang is due to a pagefault */
+	if (adreno_context && adreno_context->pagefault) {
 		/* Resume MMU */
 		mmu->mmu_ops->mmu_pagefault_resume(mmu);
-		if ((ft_data->context_id == context->id) &&
-			(ft_data->global_eop == context->pagefault_ts)) {
+		if ((ft_data->context_id == adreno_context->id) &&
+			(ft_data->global_eop == adreno_context->pagefault_ts)) {
 			ft_data->ft_policy &= ~KGSL_FT_REPLAY;
 			KGSL_FT_ERR(device, "MMU fault skipping replay\n");
 		}
-		clear_bit(KGSL_CONTEXT_PAGEFAULT, &context->priv);
+		adreno_context->pagefault = 0;
 	}
 
 	if (ft_data->ft_policy & KGSL_FT_REPLAY) {
