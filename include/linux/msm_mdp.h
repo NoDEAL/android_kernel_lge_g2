@@ -84,6 +84,7 @@
 #define MSMFB_DMB_SET_FLAG        _IOW(MSMFB_IOCTL_MAGIC, 169, int)
 #define MSMFB_DMB_SET_CSC_MATRIX  _IOW(MSMFB_IOCTL_MAGIC, 170, struct mdp_csc_cfg)
 #endif /* LGE_BROADCAST */
+#define MSMFB_ASYNC_BLIT              _IOW(MSMFB_IOCTL_MAGIC, 168, unsigned int)
 
 #define FB_TYPE_3D_PANEL 0x10101010
 #define MDP_IMGTYPE2_START 0x10000
@@ -826,6 +827,12 @@ struct mdp_buf_sync {
 	uint32_t session_id;
 	int *acq_fen_fd;
 	int *rel_fen_fd;
+};
+
+struct mdp_async_blit_req_list {
+	struct mdp_buf_sync sync;
+	uint32_t count;
+	struct mdp_blit_req req[];
 };
 
 #define MDP_DISPLAY_COMMIT_OVERLAY	1
