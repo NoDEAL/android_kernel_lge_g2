@@ -2963,7 +2963,6 @@ int adreno_idle(struct kgsl_device *device)
 	unsigned long wait_time;
 	unsigned long wait_time_part;
 	unsigned int prev_reg_val[FT_DETECT_REGS_COUNT];
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 
 	memset(prev_reg_val, 0, sizeof(prev_reg_val));
 
