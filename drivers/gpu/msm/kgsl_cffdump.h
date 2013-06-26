@@ -14,6 +14,10 @@
 #ifndef __KGSL_CFFDUMP_H
 #define __KGSL_CFFDUMP_H
 
+extern unsigned int kgsl_cff_dump_enable;
+
+#ifdef CONFIG_MSM_KGSL_CFF_DUMP
+
 #include <linux/types.h>
 
 extern unsigned int kgsl_cff_dump_enable;
@@ -48,7 +52,7 @@ void kgsl_cffdump_user_event(struct kgsl_device *device,
 void kgsl_cffdump_memory_base(struct kgsl_device *device, unsigned int base,
 			      unsigned int range, unsigned int gmemsize);
 
-void kgsl_cffdump_hang(struct kgsl_device *device);
+void kgsl_cffdump_hang(enum kgsl_deviceid device_id);
 int kgsl_cff_dump_enable_set(void *data, u64 val);
 int kgsl_cff_dump_enable_get(void *data, u64 *val);
 
@@ -124,6 +128,16 @@ static inline void kgsl_cffdump_user_event(struct kgsl_device *device,
 {
 	return;
 }
+static inline int kgsl_cff_dump_enable_set(void *data, u64 val)
+{
+	return -EINVAL;
+}
+
+static inline int kgsl_cff_dump_enable_get(void *data, u64 *val)
+{
+	return -EINVAL;
+}
+
 static inline int kgsl_cff_dump_enable_set(void *data, u64 val)
 {
 	return -EINVAL;

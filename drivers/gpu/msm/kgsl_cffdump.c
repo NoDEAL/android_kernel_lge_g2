@@ -607,55 +607,33 @@ int kgsl_cff_dump_enable_set(void *data, u64 val)
 {
 	int ret = 0;
 	struct kgsl_device *device = (struct kgsl_device *)data;
-	int i;
-
-	mutex_lock(&kgsl_driver.devlock);
 	/*
 	 * If CFF dump enabled then set active count to prevent device
 	 * from restarting because simulator cannot run device restarts
 	 */
-	if (val) {
-		/* Check if CFF is on for some other device already */
-		for (i = 0; i < KGSL_DEVICE_MAX; i++) {
-			if (kgsl_driver.devp[i]) {
-				struct kgsl_device *device_temp =
-						kgsl_driver.devp[i];
-				if (device_temp->cff_dump_enable &&
-					device != device_temp) {
-					KGSL_CORE_ERR(
-					"CFF is on for another device %d\n",
-					device_temp->id);
-					ret = -EINVAL;
-					goto done;
-				}
-			}
-		}
-		if (!device->cff_dump_enable) {
-			mutex_lock(&device->mutex);
-			device->cff_dump_enable = 1;
-			ret = kgsl_open_device(device);
-			if (!ret)
-				ret = kgsl_active_count_get(device);
-			if (ret)
-				device->cff_dump_enable = 0;
-			mutex_unlock(&device->mutex);
-		}
-	} else if (device->cff_dump_enable && !val) {
+	if (!kgsl_cff_dump_enable && val) {
+		kgsl_cff_dump_enable = 1;
+		mutex_lock(&device->mutex);
+		ret = kgsl_open_device(device);
+		if (!ret) {
+			ret = kgsl_active_count_get(device);
+		mutex_unlock(&device->mutex);
+		if (ret)
+			kgsl_cff_dump_enable = 0;
+	}
+	if (kgsl_cff_dump_enable && !val) {
+		kgsl_cff_dump_enable = 0;
 		mutex_lock(&device->mutex);
 		ret = kgsl_close_device(device);
-		device->cff_dump_enable = 0;
 		mutex_unlock(&device->mutex);
 	}
-done:
-	mutex_unlock(&kgsl_driver.devlock);
 	return ret;
 }
 EXPORT_SYMBOL(kgsl_cff_dump_enable_set);
 
 int kgsl_cff_dump_enable_get(void *data, u64 *val)
 {
-	struct kgsl_device *device = (struct kgsl_device *)data;
-	*val = device->cff_dump_enable;
+	*val = kgsl_cff_dump_enable;
 	return 0;
 }
 EXPORT_SYMBOL(kgsl_cff_dump_enable_get);

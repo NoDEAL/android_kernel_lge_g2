@@ -1018,7 +1018,7 @@ int kgsl_open_device(struct kgsl_device *device)
 		 * which will be called by kgsl_active_count_get().
 		 */
 		device->active_cnt++;
-		kgsl_sharedmem_set(device, &device->memstore, 0, 0,
+		kgsl_sharedmem_set(&device->memstore, 0, 0,
 				device->memstore.size);
 
 		result = device->ftbl->init(device);
