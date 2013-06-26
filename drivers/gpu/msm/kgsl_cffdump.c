@@ -424,6 +424,17 @@ void kgsl_cffdump_syncmem(struct kgsl_device *device,
 
 	total_syncmem += sizebytes;
 
+	if (memdesc == NULL) {
+		struct kgsl_mem_entry *entry;
+		entry = kgsl_sharedmem_find_region(dev_priv->process_priv,
+			gpuaddr, sizebytes);
+		if (entry == NULL) {
+			KGSL_CORE_ERR("did not find mapping "
+				"for gpuaddr: 0x%08x\n", gpuaddr);
+			return;
+		}
+		memdesc = &entry->memdesc;
+	}
 	src = (uint *)kgsl_gpuaddr_to_vaddr(memdesc, gpuaddr);
 	if (memdesc->hostptr == NULL) {
 		KGSL_CORE_ERR(
