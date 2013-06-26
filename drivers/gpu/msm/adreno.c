@@ -937,8 +937,8 @@ static void adreno_gpummu_setstate(struct kgsl_device *device,
 	 * writes For CFF dump we must idle and use the registers so that it is
 	 * easier to filter out the mmu accesses from the dump
 	 */
-	if (!adreno_use_default_setstate(adreno_dev)) {
-		context = kgsl_context_get(device, context_id);
+	if (!device->cff_dump_enable && adreno_dev->drawctxt_active) {
+		context = idr_find(&device->context_idr, context_id);
 		if (context == NULL)
 			return;
 		adreno_ctx = ADRENO_CONTEXT(context);
@@ -1932,18 +1932,23 @@ static int _set_max_ts(int id, void *ptr, void *data)
 	struct kgsl_device *device = data;
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
-	struct kgsl_context *context = ptr;
-	struct adreno_context *drawctxt = ADRENO_CONTEXT(context);
+	struct kgsl_context *context;
+	struct adreno_context *temp_adreno_context;
+	int next = 0;
 
-	if (drawctxt->flags & CTXT_FLAGS_GPU_HANG) {
-		kgsl_sharedmem_writel(device, &device->memstore,
-			KGSL_MEMSTORE_OFFSET(context->id,
-			soptimestamp),
-			rb->timestamp[context->id]);
-		kgsl_sharedmem_writel(device, &device->memstore,
-			KGSL_MEMSTORE_OFFSET(context->id,
-			eoptimestamp),
-			rb->timestamp[context->id]);
+	while ((context = idr_get_next(&device->context_idr, &next))) {
+		temp_adreno_context = context->devctxt;
+		if (temp_adreno_context->flags & CTXT_FLAGS_GPU_HANG) {
+			kgsl_sharedmem_writel(device, &device->memstore,
+				KGSL_MEMSTORE_OFFSET(context->id,
+				soptimestamp),
+				rb->timestamp[context->id]);
+			kgsl_sharedmem_writel(device, &device->memstore,
+				KGSL_MEMSTORE_OFFSET(context->id,
+				eoptimestamp),
+				rb->timestamp[context->id]);
+		}
+		next = next + 1;
 	}
 
 	return 0;
