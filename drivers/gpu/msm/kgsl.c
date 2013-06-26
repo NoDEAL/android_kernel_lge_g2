@@ -3529,11 +3529,6 @@ int kgsl_postmortem_dump(struct kgsl_device *device, int manual)
 	del_timer_sync(&device->idle_timer);
 	del_timer_sync(&device->hang_timer);
 
-	/* Turn off napping to make sure we have the clocks full
-	   attention through the following process */
-	saved_nap = device->pwrctrl.nap_allowed;
-	device->pwrctrl.nap_allowed = false;
-
 	/* Force on the clocks */
 	kgsl_pwrctrl_wake(device);
 
