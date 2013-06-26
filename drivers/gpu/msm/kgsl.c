@@ -1209,8 +1209,6 @@ kgsl_sharedmem_region_empty(struct kgsl_process_private *private,
 
 	assert_spin_locked(&private->mem_lock);
 
-	assert_spin_locked(&private->mem_lock);
-
 	if (!kgsl_mmu_gpuaddr_in_range(private->pagetable, gpuaddr))
 		return 0;
 
