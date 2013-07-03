@@ -2280,6 +2280,9 @@ int adreno_soft_reset(struct kgsl_device *device)
 		return -EINVAL;
 	}
 
+	if (adreno_dev->drawctxt_active)
+		kgsl_context_put(&adreno_dev->drawctxt_active->base);
+
 	adreno_dev->drawctxt_active = NULL;
 
 	/* Stop the ringbuffer */
@@ -2647,9 +2650,7 @@ play_good_cmds:
 		struct kgsl_context *last_ctx = kgsl_context_get(device,
 			ft_data->last_valid_ctx_id);
 
-		if (last_ctx)
-			adreno_dev->drawctxt_active = ADRENO_CONTEXT(last_ctx);
-		kgsl_context_put(last_ctx);
+		adreno_dev->drawctxt_active = ADRENO_CONTEXT(last_ctx);
 	}
 
 done:
