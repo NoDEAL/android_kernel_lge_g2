@@ -443,9 +443,6 @@ kgsl_device_get_drvdata(struct kgsl_device *dev)
 
 void kgsl_context_destroy(struct kref *kref);
 
-int kgsl_context_init(struct kgsl_device_private *, struct kgsl_context
-		*context);
-
 /**
  * kgsl_context_put() - Release context reference count
  * @context: Pointer to the KGSL context to be released
@@ -459,22 +456,6 @@ kgsl_context_put(struct kgsl_context *context)
 	if (context)
 		kref_put(&context->refcount, kgsl_context_destroy);
 }
-
-/**
- * kgsl_context_detached() - check if a context is detached
- * @context: the context
- *
- * Check if a context has been destroyed by userspace and is only waiting
- * for reference counts to go away. This check is used to weed out
- * contexts that shouldn't use the gpu so NULL is considered detached.
- */
-static inline bool kgsl_context_detached(struct kgsl_context *context)
-{
-	return (context == NULL || test_bit(KGSL_CONTEXT_DETACHED,
-						&context->priv));
-}
-
-
 /**
  * kgsl_context_get() - get a pointer to a KGSL context
  * @device: Pointer to the KGSL device that owns the context
@@ -491,33 +472,14 @@ static inline struct kgsl_context *kgsl_context_get(struct kgsl_device *device,
 {
 	struct kgsl_context *context = NULL;
 
-	read_lock(&device->context_lock);
-
+	rcu_read_lock();
 	context = idr_find(&device->context_idr, id);
 
-	/* Don't return a context that has been detached */
-	if (kgsl_context_detached(context))
-		context = NULL;
-	else
-		kref_get(&context->refcount);
-
-	read_unlock(&device->context_lock);
-
-	return context;
-}
-
-/**
-* _kgsl_context_get() - lightweight function to just increment the ref count
-* @context: Pointer to the KGSL context
-*
-* Get a reference to the specified KGSL context structure. This is a
-* lightweight way to just increase the refcount on a known context rather than
-* walking through kgsl_context_get and searching the iterator
-*/
-static inline void _kgsl_context_get(struct kgsl_context *context)
-{
 	if (context)
 		kref_get(&context->refcount);
+
+	rcu_read_unlock();
+	return context;
 }
 
 /**
@@ -539,8 +501,8 @@ static inline struct kgsl_context *kgsl_context_get_owner(
 
 	context = kgsl_context_get(dev_priv->device, id);
 
-	/* Verify that the context belongs to current calling process. */
-	if (context != NULL && context->pid != dev_priv->process_priv->pid) {
+	/* Verify that the context belongs to the dev_priv instance */
+	if (context && context->dev_priv != dev_priv) {
 		kgsl_context_put(context);
 		return NULL;
 	}

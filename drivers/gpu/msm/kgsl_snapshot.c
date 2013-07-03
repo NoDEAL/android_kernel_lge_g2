@@ -145,9 +145,9 @@ static int snapshot_os(struct kgsl_device *device,
 	/* Figure out how many active contexts there are - these will
 	 * be appended on the end of the structure */
 
-	read_lock(&device->context_lock);
+	rcu_read_lock();
 	idr_for_each(&device->context_idr, snapshot_context_count, &ctxtcount);
-	read_unlock(&device->context_lock);
+	rcu_read_unlock();
 
 	/* Increment ctxcount for the global memstore */
 	ctxtcount++;
@@ -204,11 +204,9 @@ static int snapshot_os(struct kgsl_device *device,
 	/* append information for the global context */
 	snapshot_context_info(KGSL_MEMSTORE_GLOBAL, NULL, device);
 	/* append information for each context */
-
-	read_lock(&device->context_lock);
+	rcu_read_lock();
 	idr_for_each(&device->context_idr, snapshot_context_info, NULL);
-	read_unlock(&device->context_lock);
-
+	rcu_read_unlock();
 	/* Return the size of the data segment */
 	return size;
 }
