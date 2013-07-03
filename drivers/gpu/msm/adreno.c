@@ -3001,6 +3001,7 @@ int adreno_idle(struct kgsl_device *device)
 	unsigned long wait_time;
 	unsigned long wait_time_part;
 	unsigned int prev_reg_val[FT_DETECT_REGS_COUNT];
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 
 	memset(prev_reg_val, 0, sizeof(prev_reg_val));
 
@@ -3018,15 +3019,8 @@ retry:
 	wait_time_part = jiffies + msecs_to_jiffies(KGSL_TIMEOUT_PART);
 
 	while (time_before(jiffies, wait_time)) {
-		adreno_readreg(adreno_dev, ADRENO_REG_RBBM_STATUS,
-					&rbbm_status);
-		if (adreno_is_a2xx(adreno_dev)) {
-			if (rbbm_status == 0x110)
-				return 0;
-		} else {
-			if (!(rbbm_status & 0x80000000))
-				return 0;
-		}
+		if (adreno_isidle(device))
+			return 0;
 
 		/* Dont wait for timeout, detect hang faster.  */
 		if (time_after(jiffies, wait_time_part)) {
