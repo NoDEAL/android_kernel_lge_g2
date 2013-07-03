@@ -464,15 +464,8 @@ static void kgsl_mem_entry_detach_process(struct kgsl_mem_entry *entry)
 int kgsl_context_init(struct kgsl_device_private *dev_priv,
 			struct kgsl_context *context)
 {
+	int ret = 0, id;
 	struct kgsl_device *device = dev_priv->device;
-	struct kgsl_context *context;
-	int ret, id = 0;
-
-	context = kzalloc(sizeof(*context), GFP_KERNEL);
-
-	if (context == NULL)
-		return ERR_PTR(-ENOMEM);
-
 
 	while (1) {
 		if (idr_pre_get(&device->context_idr, GFP_KERNEL) == 0) {
@@ -498,26 +491,19 @@ int kgsl_context_init(struct kgsl_device_private *dev_priv,
 		KGSL_DRV_INFO(device, "cannot have more than %d "
 				"ctxts due to memstore limitation\n",
 				KGSL_MEMSTORE_MAX);
-		write_lock(&device->context_lock);
-		idr_remove(&device->context_idr, id);
-		write_unlock(&device->context_lock);
 		ret = -ENOSPC;
 		goto fail_free_id;
 	}
 
 	kref_init(&context->refcount);
-	context->dev_priv = dev_priv;
+	context->device = dev_priv->device;
+	context->pagetable = dev_priv->process_priv->pagetable;
+
 	context->pid = dev_priv->process_priv->pid;
 
 	ret = kgsl_sync_timeline_create(context);
 	if (ret)
 		goto fail_free_id;
-	if (ret) {
-		write_lock(&device->context_lock);
-		idr_remove(&dev_priv->device->context_idr, id);
-		write_unlock(&device->context_lock);
-		goto func_end;
-	}
 
 	/* Initialize the pending event list */
 	INIT_LIST_HEAD(&context->events);
@@ -579,13 +565,6 @@ kgsl_context_detach(struct kgsl_context *context)
 	 * it is still in use by the GPU.
 	 */
 	kgsl_cancel_events_ctxt(device, context);
-
-	write_lock(&device->context_lock);
-	context->id = KGSL_CONTEXT_INVALID;
-	idr_remove(&device->context_idr, id);
-	write_unlock(&device->context_lock);
-
-	context->dev_priv = NULL;
 
 	kgsl_context_put(context);
 }
@@ -1006,7 +985,7 @@ static int kgsl_release(struct inode *inodep, struct file *filep)
 		if (context == NULL)
 			break;
 
-		if (context->dev_priv == dev_priv)
+		if (context->pid == private->pid)
 			kgsl_context_detach(context);
 
 		next = next + 1;

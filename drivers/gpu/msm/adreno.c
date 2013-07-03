@@ -862,7 +862,7 @@ static void adreno_iommu_setstate(struct kgsl_device *device,
 	if (context == NULL)
 		return;
 
-	adreno_ctx = context->devctxt;
+	adreno_ctx = ADRENO_CONTEXT(context);
 
 	if (kgsl_mmu_enable_clk(&device->mmu,
 				KGSL_IOMMU_CONTEXT_USER))
@@ -1906,7 +1906,7 @@ static int _mark_context_status(int id, void *ptr, void *data)
 {
 	unsigned int ft_status = *((unsigned int *) data);
 	struct kgsl_context *context = ptr;
-	struct adreno_context *adreno_context = context->devctxt;
+	struct adreno_context *adreno_context = ADRENO_CONTEXT(context);
 
 	if (ft_status) {
 		context->reset_status =
@@ -1947,7 +1947,7 @@ static int _set_max_ts(int id, void *ptr, void *data)
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
 	struct kgsl_context *context = ptr;
-	struct adreno_context *drawctxt = context->devctxt;
+	struct adreno_context *drawctxt = ADRENO_CONTEXT(context);
 
 	if (drawctxt->flags & CTXT_FLAGS_GPU_HANG) {
 		kgsl_sharedmem_writel(device, &device->memstore,
@@ -2342,11 +2342,9 @@ _adreno_ft_restart_device(struct kgsl_device *device,
 	}
 
 reset_done:
-	if (context) {
-		struct adreno_context *adreno_context = context->devctxt;
-		kgsl_mmu_setstate(&device->mmu, adreno_context->pagetable,
-			KGSL_MEMSTORE_GLOBAL);
-	}
+	if (context)
+		kgsl_mmu_setstate(&device->mmu, context->pagetable,
+				KGSL_MEMSTORE_GLOBAL);
 
 	/* If iommu is used then we need to make sure that the iommu clocks
 	 * are on since there could be commands in pipeline that touch iommu */
@@ -2521,16 +2519,16 @@ _adreno_ft(struct kgsl_device *device,
 		goto play_good_cmds;
 	}
 
-	/* Do not try the reply if hang is due to a pagefault */
-	if (adreno_context && adreno_context->pagefault) {
+	/* Do not try to replay if hang is due to a pagefault */
+	if (context && test_bit(KGSL_CONTEXT_PAGEFAULT, &context->priv)) {
 		/* Resume MMU */
 		mmu->mmu_ops->mmu_pagefault_resume(mmu);
-		if ((ft_data->context_id == adreno_context->id) &&
-			(ft_data->global_eop == adreno_context->pagefault_ts)) {
+		if ((ft_data->context_id == context->id) &&
+			(ft_data->global_eop == context->pagefault_ts)) {
 			ft_data->ft_policy &= ~KGSL_FT_REPLAY;
 			KGSL_FT_ERR(device, "MMU fault skipping replay\n");
 		}
-		adreno_context->pagefault = 0;
+		clear_bit(KGSL_CONTEXT_PAGEFAULT, &context->priv);
 	}
 
 	if (ft_data->ft_policy & KGSL_FT_REPLAY) {
@@ -2650,8 +2648,7 @@ play_good_cmds:
 			ft_data->last_valid_ctx_id);
 
 		if (last_ctx)
-			adreno_dev->drawctxt_active = last_ctx->devctxt;
-
+			adreno_dev->drawctxt_active = ADRENO_CONTEXT(last_ctx);
 		kgsl_context_put(last_ctx);
 	}
 
@@ -3120,7 +3117,6 @@ struct kgsl_memdesc *adreno_find_ctxtmem(struct kgsl_device *device,
 	int next = 0;
 	struct kgsl_memdesc *desc = NULL;
 
-
 	read_lock(&device->context_lock);
 	while (1) {
 		context = idr_get_next(&device->context_idr, &next);
@@ -3129,6 +3125,9 @@ struct kgsl_memdesc *adreno_find_ctxtmem(struct kgsl_device *device,
 
 		if (kgsl_mmu_pt_equal(&device->mmu, context->pagetable,
 					pt_base)) {
+			struct adreno_context *adreno_context;
+
+			adreno_context = ADRENO_CONTEXT(context);
 			desc = &adreno_context->gpustate;
 			if (kgsl_gpuaddr_in_memdesc(desc, gpuaddr, size))
 				break;
