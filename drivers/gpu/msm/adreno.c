@@ -1907,27 +1907,12 @@ static int adreno_stop(struct kgsl_device *device)
 
 static int _mark_context_status(int id, void *ptr, void *data)
 {
-	struct kgsl_context *context;
-	int next = 0;
-	/*
-	 * Set the reset status of all contexts to
-	 * INNOCENT_CONTEXT_RESET_EXT except for the bad context
-	 * since thats the guilty party, if fault tolerance failed then
-	 * mark all as guilty
-	 */
+	unsigned int ft_status = *((unsigned int *) data);
+	struct kgsl_context *context = ptr;
+	struct adreno_context *adreno_context = context->devctxt;
 
-	rcu_read_lock();
-	while ((context = idr_get_next(&device->context_idr, &next))) {
-		struct adreno_context *adreno_context = context->devctxt;
-		if (ft_status) {
-			context->reset_status =
-					KGSL_CTX_STAT_GUILTY_CONTEXT_RESET_EXT;
-			adreno_context->flags |= CTXT_FLAGS_GPU_HANG;
-		} else if (KGSL_CTX_STAT_GUILTY_CONTEXT_RESET_EXT !=
-			context->reset_status) {
-			if (adreno_context->flags & (CTXT_FLAGS_GPU_HANG |
-				CTXT_FLAGS_GPU_HANG_FT))
-				context->reset_status =
+	if (ft_status) {
+		context->reset_status =
 				KGSL_CTX_STAT_GUILTY_CONTEXT_RESET_EXT;
 		adreno_context->flags |= CTXT_FLAGS_GPU_HANG;
 	} else if (KGSL_CTX_STAT_GUILTY_CONTEXT_RESET_EXT !=
@@ -1940,7 +1925,8 @@ static int _mark_context_status(int id, void *ptr, void *data)
 			context->reset_status =
 			KGSL_CTX_STAT_INNOCENT_CONTEXT_RESET_EXT;
 	}
-	rcu_read_unlock();
+
+	return 0;
 }
 
 static void adreno_mark_context_status(struct kgsl_device *device,
@@ -1963,26 +1949,28 @@ static int _set_max_ts(int id, void *ptr, void *data)
 	struct kgsl_device *device = data;
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
-	struct kgsl_context *context;
-	struct adreno_context *temp_adreno_context;
-	int next = 0;
+	struct kgsl_context *context = ptr;
+	struct adreno_context *drawctxt = context->devctxt;
 
-	rcu_read_lock();
-	while ((context = idr_get_next(&device->context_idr, &next))) {
-		temp_adreno_context = context->devctxt;
-		if (temp_adreno_context->flags & CTXT_FLAGS_GPU_HANG) {
-			kgsl_sharedmem_writel(device, &device->memstore,
-				KGSL_MEMSTORE_OFFSET(context->id,
-				soptimestamp),
-				rb->timestamp[context->id]);
-			kgsl_sharedmem_writel(device, &device->memstore,
-				KGSL_MEMSTORE_OFFSET(context->id,
-				eoptimestamp),
-				rb->timestamp[context->id]);
-		}
-		next = next + 1;
+	if (drawctxt->flags & CTXT_FLAGS_GPU_HANG) {
+		kgsl_sharedmem_writel(device, &device->memstore,
+			KGSL_MEMSTORE_OFFSET(context->id,
+			soptimestamp),
+			rb->timestamp[context->id]);
+		kgsl_sharedmem_writel(device, &device->memstore,
+			KGSL_MEMSTORE_OFFSET(context->id,
+			eoptimestamp),
+			rb->timestamp[context->id]);
 	}
-	rcu_read_unlock();
+
+	return 0;
+}
+
+static void adreno_set_max_ts_for_bad_ctxs(struct kgsl_device *device)
+{
+	read_lock(&device->context_lock);
+	idr_for_each(&device->context_idr, _set_max_ts, device);
+	read_unlock(&device->context_lock);
 }
 
 static void adreno_destroy_ft_data(struct adreno_ft_data *ft_data)
@@ -3141,7 +3129,8 @@ struct kgsl_memdesc *adreno_find_ctxtmem(struct kgsl_device *device,
 	int next = 0;
 	struct kgsl_memdesc *desc = NULL;
 
-	rcu_read_lock();
+
+	read_lock(&device->context_lock);
 	while (1) {
 		context = idr_get_next(&device->context_idr, &next);
 		if (context == NULL)
@@ -3160,7 +3149,7 @@ struct kgsl_memdesc *adreno_find_ctxtmem(struct kgsl_device *device,
 		next = next + 1;
 		desc = NULL;
 	}
-	rcu_read_unlock();
+	read_unlock(&device->context_lock);
 	return desc;
 }
 

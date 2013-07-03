@@ -472,13 +472,15 @@ static inline struct kgsl_context *kgsl_context_get(struct kgsl_device *device,
 {
 	struct kgsl_context *context = NULL;
 
-	rcu_read_lock();
+	read_lock(&device->context_lock);
+
 	context = idr_find(&device->context_idr, id);
 
 	if (context)
 		kref_get(&context->refcount);
 
-	rcu_read_unlock();
+	read_unlock(&device->context_lock);
+
 	return context;
 }
 
