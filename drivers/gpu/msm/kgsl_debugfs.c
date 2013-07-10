@@ -327,21 +327,37 @@ int
 kgsl_process_init_debugfs(struct kgsl_process_private *private)
 {
 	unsigned char name[16];
-	struct dentry *mem_dentry;
+	int ret = 0;
+	struct dentry *dentry;
 
 	snprintf(name, sizeof(name), "%d", private->pid);
 
 	private->debug_root = debugfs_create_dir(name, proc_d_debugfs);
-	if (private->debug_root) {
-		private->debug_root->d_inode->i_uid = proc_d_debugfs->d_inode->i_uid;
-		private->debug_root->d_inode->i_gid = proc_d_debugfs->d_inode->i_gid;
-	}
-	mem_dentry = debugfs_create_file("mem", 0400, private->debug_root, private,
+
+	if (!private->debug_root)
+		return -EINVAL;
+
+	/*
+	 * debugfs_create_dir() and debugfs_create_file() both
+	 * return -ENODEV if debugfs is disabled in the kernel.
+	 * We make a distinction between these two functions
+	 * failing and debugfs being disabled in the kernel.
+	 * In the first case, we abort process private struct
+	 * creation, in the second we continue without any changes.
+	 * So if debugfs is disabled in kernel, return as
+	 * success.
+	 */
+	dentry = debugfs_create_file("mem", 0400, private->debug_root, private,
 			    &process_mem_fops);
-	if (mem_dentry) {
-		mem_dentry->d_inode->i_uid = proc_d_debugfs->d_inode->i_uid;
-		mem_dentry->d_inode->i_gid = proc_d_debugfs->d_inode->i_gid;
+
+	if (IS_ERR(dentry)) {
+		ret = PTR_ERR(dentry);
+
+		if (ret == -ENODEV)
+			ret = 0;
 	}
+
+	return ret;
 }
 
 void kgsl_core_debugfs_init(void)

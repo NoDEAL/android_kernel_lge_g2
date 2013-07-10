@@ -898,8 +898,10 @@ kgsl_get_process_private(struct kgsl_device_private *cur_dev_priv)
 			goto error;
 	}
 
-	kgsl_process_init_sysfs(private);
-	kgsl_process_init_debugfs(private);
+	if (kgsl_process_init_sysfs(cur_dev_priv->device, private))
+		goto error;
+	if (kgsl_process_init_debugfs(private))
+		goto error;
 
 	set_bit(KGSL_PROCESS_INIT, &private->priv);
 
