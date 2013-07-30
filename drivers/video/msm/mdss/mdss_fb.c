@@ -531,6 +531,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	if (pdata->next)
 		mfd->split_display = true;
 	mfd->mdp = *mdp_instance;
+	INIT_LIST_HEAD(&mfd->proc_list);
 
 	mutex_init(&mfd->lock);
 	mutex_init(&mfd->bl_lock);
@@ -1414,7 +1415,26 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 static int mdss_fb_open(struct fb_info *info, int user)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+	struct mdss_fb_proc_info *pinfo = NULL;
 	int result;
+	int pid = current->tgid;
+
+	list_for_each_entry(pinfo, &mfd->proc_list, list) {
+		if (pinfo->pid == pid)
+			break;
+	}
+
+	if ((pinfo == NULL) || (pinfo->pid != pid)) {
+		pinfo = kmalloc(sizeof(*pinfo), GFP_KERNEL);
+		if (!pinfo) {
+			pr_err("unable to alloc process info\n");
+			return -ENOMEM;
+		}
+		pinfo->pid = pid;
+		pinfo->ref_cnt = 0;
+		list_add(&pinfo->list, &mfd->proc_list);
+		pr_debug("new process entry pid=%d\n", pinfo->pid);
+	}
 
 	result = pm_runtime_get_sync(info->dev);
 	if (result < 0)
@@ -1431,6 +1451,7 @@ static int mdss_fb_open(struct fb_info *info, int user)
 		}
 	}
 
+	pinfo->ref_cnt++;
 	mfd->ref_cnt++;
 	return 0;
 }
@@ -1438,7 +1459,9 @@ static int mdss_fb_open(struct fb_info *info, int user)
 static int mdss_fb_release(struct fb_info *info, int user)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+	struct mdss_fb_proc_info *pinfo = NULL;
 	int ret = 0;
+	int pid = current->tgid;
 
 	if (!mfd->ref_cnt) {
 		pr_info("try to close unopened fb %d!\n", mfd->index);
@@ -1447,6 +1470,32 @@ static int mdss_fb_release(struct fb_info *info, int user)
 
 	mdss_fb_pan_idle(mfd);
 	mfd->ref_cnt--;
+
+	list_for_each_entry(pinfo, &mfd->proc_list, list) {
+		if (pinfo->pid == pid)
+			break;
+	}
+
+	if (!pinfo || (pinfo->pid != pid)) {
+		pr_warn("unable to find process info for fb%d pid=%d\n",
+				mfd->index, pid);
+	} else {
+		pr_debug("found process entry pid=%d ref=%d\n",
+				pinfo->pid, pinfo->ref_cnt);
+
+		pinfo->ref_cnt--;
+		if (pinfo->ref_cnt == 0) {
+			if (mfd->mdp.release_fnc) {
+				ret = mfd->mdp.release_fnc(mfd);
+				if (ret)
+					pr_err("error releasing fb%d pid=%d\n",
+						mfd->index, pinfo->pid);
+			}
+			list_del(&pinfo->list);
+			kfree(pinfo);
+		}
+	}
+
 	if (!mfd->ref_cnt) {
 		pr_info("%s: fb ref_cnt is 0\n", __func__);
 
