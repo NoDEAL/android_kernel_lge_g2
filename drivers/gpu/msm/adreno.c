@@ -558,6 +558,7 @@ static int adreno_setup_pt(struct kgsl_device *device,
 		result = kgsl_mmu_map_global(pagetable,
 			&adreno_dev->pwron_fixup);
 
+
 	if (!result)
 		result = kgsl_mmu_map_global(pagetable,
 			&device->mmu.setstate_memory);

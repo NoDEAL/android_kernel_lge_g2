@@ -2583,13 +2583,11 @@ int adreno_a3xx_pwron_fixup_init(struct adreno_device *adreno_dev)
 	int count = ARRAY_SIZE(_a3xx_pwron_fixup_fs_instructions);
 	int ret;
 
-	 /* Return if the fixup is already in place */
+	/* Return if the fixup is already in place */
 	if (test_bit(ADRENO_DEVICE_PWRON_FIXUP, &adreno_dev->priv))
 		return 0;
 
-
-	ret = kgsl_allocate_contiguous(&adreno_dev->pwron_fixup,
-		PAGE_SIZE);
+	ret = kgsl_allocate_contiguous(&adreno_dev->pwron_fixup, PAGE_SIZE);
 
 	if (ret)
 		return ret;
@@ -3008,7 +3006,6 @@ int adreno_a3xx_pwron_fixup_init(struct adreno_device *adreno_dev)
 
 	/* Mark the flag in ->priv to show that we have the fix */
 	set_bit(ADRENO_DEVICE_PWRON_FIXUP, &adreno_dev->priv);
-
 	return 0;
 }
 
