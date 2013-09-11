@@ -18,6 +18,7 @@
 #include <linux/list.h>
 #include <linux/msm_mdp.h>
 #include <linux/types.h>
+#include <linux/notifier.h>
 
 #include "mdss_panel.h"
 
@@ -56,13 +57,16 @@ struct msm_sync_pt_data {
 	char *fence_name;
 	u32 acq_fen_cnt;
 	struct sync_fence *acq_fen[MDP_MAX_FENCE_FD];
-	int cur_rel_fen_fd;
-	struct sync_pt *cur_rel_sync_pt;
-	struct sync_fence *cur_rel_fence;
+
 	struct sw_sync_timeline *timeline;
 	int timeline_value;
 	u32 threshold;
+
+	atomic_t commit_cnt;
+	bool busy;
+
 	struct mutex sync_mutex;
+	struct notifier_block notifier;
 };
 
 struct msm_fb_data_type;
@@ -101,6 +105,11 @@ struct mdss_fb_proc_info {
 	int pid;
 	u32 ref_cnt;
 	struct list_head list;
+};
+
+struct msm_fb_backup_type {
+	struct fb_info info;
+	struct mdp_display_commit disp_commit;
 };
 
 struct msm_fb_data_type {
@@ -152,8 +161,9 @@ struct msm_fb_data_type {
 	/* for non-blocking */
 	struct completion commit_comp;
 	u32 is_committing;
-	struct work_struct commit_work;
-	void *msm_fb_backup;
+	wait_queue_head_t commit_wait_q;
+
+	struct msm_fb_backup_type msm_fb_backup;
 	struct completion power_set_comp;
 	u32 is_power_setting;
 
@@ -161,10 +171,6 @@ struct msm_fb_data_type {
 	struct list_head proc_list;
 };
 
-struct msm_fb_backup_type {
-	struct fb_info info;
-	struct mdp_display_commit disp_commit;
-};
 #ifdef CONFIG_MACH_LGE
 int mdss_dsi_panel_invert(u32 enable);
 #endif
