@@ -73,6 +73,7 @@ struct mdss_data_type {
 	u32 irq_buzy;
 	u32 has_bwc;
 	u32 has_decimation;
+	u8 has_wfd_blk;
 
 	u32 mdp_irq_mask;
 	u32 mdp_hist_irq_mask;
@@ -146,6 +147,7 @@ int mdss_register_irq(struct mdss_hw *hw);
 void mdss_enable_irq(struct mdss_hw *hw);
 void mdss_disable_irq(struct mdss_hw *hw);
 void mdss_disable_irq_nosync(struct mdss_hw *hw);
+void mdss_bus_bandwidth_ctrl(int enable);
 
 static inline struct ion_client *mdss_get_ionclient(void)
 {

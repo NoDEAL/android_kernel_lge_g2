@@ -177,7 +177,7 @@ void mdss_fb_no_update_notify_timer_cb(unsigned long data)
 static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 							unsigned long *argp)
 {
-	int ret, notify;
+	int ret, notify, to_user;
 
 	ret = copy_from_user(&notify, argp, sizeof(int));
 	if (ret) {
@@ -208,7 +208,9 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 
 	if (ret == 0)
 		ret = -ETIMEDOUT;
-	return (ret > 0) ? 0 : ret;
+	else if (ret > 0)
+		ret = copy_to_user(argp, &to_user, sizeof(int));
+	return ret;
 }
 
 static int lcd_backlight_registered;
@@ -585,17 +587,20 @@ static int mdss_fb_probe(struct platform_device *pdev)
 		mfd->mdp_sync_pt_data.notifier.notifier_call =
 			__mdss_fb_sync_buf_done_callback;
 	}
-<<<<<<< HEAD
-	if (mfd->panel.type == WRITEBACK_PANEL)
-=======
-	if ((mfd->panel.type == WRITEBACK_PANEL) ||
-			(mfd->panel.type == MIPI_CMD_PANEL)) {
->>>>>>> 1c300fd... msm: mdp: Add retire fence
+
+	switch (mfd->panel.type) {
+	case WRITEBACK_PANEL:
+		mfd->mdp_sync_pt_data.threshold = 1;
+		mfd->mdp_sync_pt_data.retire_threshold = 0;
+		break;
+	case MIPI_CMD_PANEL:
 		mfd->mdp_sync_pt_data.threshold = 1;
 		mfd->mdp_sync_pt_data.retire_threshold = 1;
-	} else {
+		break;
+	default:
 		mfd->mdp_sync_pt_data.threshold = 2;
 		mfd->mdp_sync_pt_data.retire_threshold = 0;
+		break;
 	}
 
 #if defined(CONFIG_MACH_LGE)

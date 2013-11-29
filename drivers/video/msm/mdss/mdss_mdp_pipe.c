@@ -17,6 +17,7 @@
 #include <linux/errno.h>
 #include <linux/mutex.h>
 
+#include "mdss_fb.h"
 #include "mdss_mdp.h"
 #include "mdss_dsi.h"
 
@@ -163,7 +164,9 @@ int mdss_mdp_smp_reserve(struct mdss_mdp_pipe *pipe)
 	int i;
 	int rc = 0, rot_mode = 0;
 	u32 nlines;
-	u16 width = pipe->src.w >> pipe->horz_deci;
+	u16 width;
+
+	width = pipe->src.w >> pipe->horz_deci;
 
 	if (pipe->bwc_mode) {
 		rc = mdss_mdp_get_rau_strides(pipe->src.w, pipe->src.h,
@@ -397,7 +400,6 @@ struct mdss_mdp_pipe *mdss_mdp_pipe_get(struct mdss_data_type *mdata, u32 ndx)
 	mutex_lock(&mdss_mdp_sspp_lock);
 
 	pipe = mdss_mdp_pipe_search(mdata, ndx);
-
 	if (!pipe) {
 		pipe = ERR_PTR(-EINVAL);
 		goto error;

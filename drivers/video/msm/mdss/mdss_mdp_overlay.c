@@ -22,6 +22,7 @@
 #include <linux/uaccess.h>
 #include <linux/delay.h>
 #include <linux/msm_mdp.h>
+#include <linux/sw_sync.h>
 
 #include <mach/iommu_domains.h>
 #include <mach/event_timer.h>
@@ -1477,25 +1478,18 @@ static void mdss_mdp_overlay_handle_vsync(struct mdss_mdp_ctl *ctl,
 
 int mdss_mdp_overlay_vsync_ctrl(struct msm_fb_data_type *mfd, int en)
 {
-	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
 	int rc;
 
 	if (!ctl)
 		return -ENODEV;
 	if (!ctl->add_vsync_handler || !ctl->remove_vsync_handler)
-		return -ENOTSUPP;
-
-	rc = mutex_lock_interruptible(&ctl->lock);
-	if (rc)
-		return rc;
+		return -EOPNOTSUPP;
 
 	if (!ctl->power_on) {
 		pr_debug("fb%d vsync pending first update en=%d\n",
 				mfd->index, en);
-		mdp5_data->vsync_pending = en;
-		mutex_unlock(&ctl->lock);
-		return 0;
+		return -EPERM;
 	}
 
 	pr_debug("fb%d vsync en=%d\n", mfd->index, en);

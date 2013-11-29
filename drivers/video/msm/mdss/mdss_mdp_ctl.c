@@ -16,6 +16,7 @@
 #include <linux/errno.h>
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
+#include <linux/sort.h>
 
 #include "mdss_fb.h"
 #include "mdss_mdp.h"
@@ -53,6 +54,7 @@ enum {
 static DEFINE_MUTEX(mdss_mdp_ctl_lock);
 
 static int mdss_mdp_mixer_free(struct mdss_mdp_mixer *mixer);
+static inline int __mdss_mdp_ctl_get_mixer_off(struct mdss_mdp_mixer *mixer);
 
 static inline void mdp_mixer_write(struct mdss_mdp_mixer *mixer,
 				   u32 reg, u32 val)

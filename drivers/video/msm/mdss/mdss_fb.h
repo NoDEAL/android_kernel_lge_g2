@@ -51,6 +51,7 @@ struct disp_info_notify {
 	struct timer_list timer;
 	struct completion comp;
 	struct mutex lock;
+	int value;
 };
 
 struct msm_sync_pt_data {
