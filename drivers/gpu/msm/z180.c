@@ -580,6 +580,7 @@ static int z180_start(struct kgsl_device *device)
 
 	z180_cmdstream_start(device);
 
+	mod_timer(&device->idle_timer, jiffies + FIRST_TIMEOUT);
 	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_ON);
 	device->ftbl->irqctrl(device, 1);
 
