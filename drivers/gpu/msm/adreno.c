@@ -445,11 +445,8 @@ int adreno_perfcounter_get(struct adreno_device *adreno_dev,
 	for (i = 0; i < group->reg_count; i++) {
 		if (group->regs[i].countable == countable) {
 			/* Countable already associated with counter */
-			if (flags & PERFCOUNTER_FLAG_KERNEL)
-				group->regs[i].kernelcount++;
-			else
-				group->regs[i].usercount++;
-
+			group->regs[i].refcount++;
+			group->regs[i].flags |= flags;
 			if (offset)
 				*offset = group->regs[i].offset;
 			return 0;
@@ -466,19 +463,13 @@ int adreno_perfcounter_get(struct adreno_device *adreno_dev,
 
 	/* initialize the new counter */
 	group->regs[empty].countable = countable;
-
-	/* set initial kernel and user count */
-	if (flags & PERFCOUNTER_FLAG_KERNEL) {
-		group->regs[empty].kernelcount = 1;
-		group->regs[empty].usercount = 0;
-	} else {
-		group->regs[empty].kernelcount = 0;
-		group->regs[empty].usercount = 1;
-	}
+	group->regs[empty].refcount = 1;
 
 	/* enable the new counter */
 	adreno_dev->gpudev->perfcounter_enable(adreno_dev, groupid, empty,
 		countable);
+
+	group->regs[empty].flags = flags;
 
 	if (offset)
 		*offset = group->regs[empty].offset;
@@ -492,13 +483,12 @@ int adreno_perfcounter_get(struct adreno_device *adreno_dev,
  * @adreno_dev: Adreno device to configure
  * @groupid: Desired performance counter group
  * @countable: Countable desired to be freed from a  counter
- * @flags: Flag to determine if kernel or user space request
  *
  * Put a performance counter/countable pair that was previously received.  If
  * noone else is using the countable, free up the counter for others.
  */
 int adreno_perfcounter_put(struct adreno_device *adreno_dev,
-	unsigned int groupid, unsigned int countable, unsigned int flags)
+	unsigned int groupid, unsigned int countable)
 {
 	struct adreno_perfcounters *counters = adreno_dev->gpudev->perfcounters;
 	struct adreno_perfcount_group *group;
@@ -514,27 +504,24 @@ int adreno_perfcounter_put(struct adreno_device *adreno_dev,
 
 	group = &(counters->groups[groupid]);
 
-	/*
-	 * Find if the counter/countable pair is used currently.
-	 * Start cycling through registers in the bank.
-	 */
 	for (i = 0; i < group->reg_count; i++) {
-		/* check if countable assigned is what we are looking for */
 		if (group->regs[i].countable == countable) {
-			/* found pair, book keep count based on request type */
-			if (flags & PERFCOUNTER_FLAG_KERNEL &&
-					group->regs[i].kernelcount > 0)
-				group->regs[i].kernelcount--;
-			else if (group->regs[i].usercount > 0)
-				group->regs[i].usercount--;
-			else
-				break;
+			if (group->regs[i].refcount > 0) {
+				group->regs[i].refcount--;
 
-			/* mark available if not used anymore */
-			if (group->regs[i].kernelcount == 0 &&
-					group->regs[i].usercount == 0)
-				group->regs[i].countable =
-					KGSL_PERFCOUNTER_NOT_USED;
+				/*
+				 * book keeping to ensure we never free a
+				 * perf counter used by kernel
+				 */
+				if (group->regs[i].flags &&
+					group->regs[i].refcount == 0)
+					group->regs[i].refcount++;
+
+				/* make available if not used */
+				if (group->regs[i].refcount == 0)
+					group->regs[i].countable =
+						KGSL_PERFCOUNTER_NOT_USED;
+			}
 
 			return 0;
 		}
@@ -3805,7 +3792,7 @@ static long adreno_ioctl(struct kgsl_device_private *dev_priv,
 	case IOCTL_KGSL_PERFCOUNTER_PUT: {
 		struct kgsl_perfcounter_put *put = data;
 		result = adreno_perfcounter_put(adreno_dev, put->groupid,
-			put->countable, PERFCOUNTER_FLAG_NONE);
+			put->countable);
 		break;
 	}
 	case IOCTL_KGSL_PERFCOUNTER_QUERY: {
