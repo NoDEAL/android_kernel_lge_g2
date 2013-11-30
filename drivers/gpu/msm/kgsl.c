@@ -818,9 +818,9 @@ static void kgsl_destroy_process_private(struct kref *kref)
 		debugfs_remove_recursive(private->debug_root);
 
 	while (1) {
-		spin_lock(&private->mem_lock);
+		rcu_read_lock();
 		entry = idr_get_next(&private->mem_idr, &next);
-		spin_unlock(&private->mem_lock);
+		rcu_read_unlock();
 		if (entry == NULL)
 			break;
 		kgsl_mem_entry_put(entry);
@@ -831,8 +831,8 @@ static void kgsl_destroy_process_private(struct kref *kref)
 		 */
 		next = 0;
 	}
-	idr_destroy(&private->mem_idr);
 	kgsl_mmu_putpagetable(private->pagetable);
+	idr_destroy(&private->mem_idr);
 
 	kfree(private);
 	return;
@@ -1255,11 +1255,11 @@ kgsl_sharedmem_find_id(struct kgsl_process_private *process, unsigned int id)
 {
 	struct kgsl_mem_entry *entry;
 
-	spin_lock(&process->mem_lock);
+	rcu_read_lock();
 	entry = idr_find(&process->mem_idr, id);
 	if (entry)
 		kgsl_mem_entry_get(entry);
-	spin_unlock(&process->mem_lock);
+	rcu_read_unlock();
 
 	return entry;
 }
