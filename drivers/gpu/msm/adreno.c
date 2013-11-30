@@ -262,9 +262,7 @@ static void adreno_perfcounter_start(struct adreno_device *adreno_dev)
 		/* countable iter */
 		for (j = 0; j < group->reg_count; j++) {
 			if (group->regs[j].countable ==
-					KGSL_PERFCOUNTER_NOT_USED ||
-					group->regs[j].countable ==
-					KGSL_PERFCOUNTER_BROKEN)
+					KGSL_PERFCOUNTER_NOT_USED)
 				continue;
 
 			if (adreno_dev->gpudev->perfcounter_enable)
