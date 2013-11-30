@@ -1511,8 +1511,7 @@ int kgsl_active_count_get(struct kgsl_device *device)
 	int ret = 0;
 	BUG_ON(!mutex_is_locked(&device->mutex));
 
-	if (device->active_cnt == 0 &&
-		device->state != KGSL_STATE_ACTIVE) {
+	if (device->active_cnt == 0) {
 		mutex_unlock(&device->mutex);
 		wait_for_completion(&device->hwaccess_gate);
 		wait_for_completion(&device->ft_gate);
